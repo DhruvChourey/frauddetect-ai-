@@ -16,15 +16,36 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 const HISTORY_PATH = path.join(__dirname, 'data', 'history.json');
 const CACHE_PATH = path.join(__dirname, 'data', 'cache.json');
+
+// Ensure data directory exists
+if (!fs.existsSync(path.join(__dirname, 'data'))) {
+  fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+  console.log('Created data directory');
+}
 
 // In-memory cache for faster lookups
 const responseCache = new Map();
 
-app.use(cors());
-app.use(bodyParser.json());
+// CORS configuration
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || '*',
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.use(bodyParser.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Request logging for production
+if (NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+  });
+}
 
 // Load cache from disk
 function loadCache() {
@@ -84,6 +105,14 @@ async function callProvider({ type, content, url }) {
   }
 
   const provider = (process.env.PROVIDER || (process.env.USE_MOCK === 'true' ? 'mock' : 'gemini')).toLowerCase();
+  
+  // Debug logging
+  console.log('=== Provider Debug Info ===');
+  console.log('Selected provider:', provider);
+  console.log('PROVIDER env var:', process.env.PROVIDER || 'not set');
+  console.log('USE_MOCK env var:', process.env.USE_MOCK || 'not set');
+  console.log('GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'configured' : 'NOT CONFIGURED');
+  console.log('========================');
 
   // Mock provider for free local testing
   if (provider === 'mock') {
@@ -111,23 +140,30 @@ async function callProvider({ type, content, url }) {
       return { verdict: 'error', score: 0, category: 'configuration', reason: 'GEMINI_API_KEY is not configured on the server.', suggestedSources: [] };
     }
 
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
     // MINIMAL prompt - only ~50 tokens to use 1 API token per search
-    const contentPreview = content.length > 100 ? content.substring(0, 100) : content;
-    const prompt = `Check scam/phishing: "${contentPreview}". Respond: {verdict:"scam"|"safe"|"suspicious",score:0-100,reason:"short text"}`;
+    const contentPreview = content.length > 500 ? content.substring(0, 500) + '...' : content;
+    const prompt = `Analyze this for scams/phishing/fake-news: "${contentPreview}". Respond JSON only: {verdict:"scam"|"safe"|"suspicious",score:0-100,reason:"brief explanation",category:"${type}"}`;
     const urlApi = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
     try {
       const resp = await fetch(`${urlApi}?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        timeout: 30000 // 30 second timeout
       });
       const raw = await resp.text();
-      console.log('Provider=gemini status:', resp.status);
-      console.log('Provider=gemini raw response:', raw.substring(0, 500));
       
-      if (!resp.ok) return { verdict: 'error', score: 0, category: type, reason: `Gemini API request failed with status ${resp.status} - ${raw || 'no body'}`, suggestedSources: [] };
+      if (NODE_ENV === 'development') {
+        console.log('Provider=gemini status:', resp.status);
+        console.log('Provider=gemini raw response:', raw.substring(0, 500));
+      }
+      
+      if (!resp.ok) {
+        console.error(`Gemini API error: ${resp.status} - ${raw.substring(0, 200)}`);
+        return { verdict: 'error', score: 0, category: type, reason: `Gemini API request failed with status ${resp.status}`, suggestedSources: [] };
+      }
       
       let data;
       try {
@@ -297,10 +333,89 @@ app.get('/api/record/:id', (req, res) => {
   res.json(record);
 });
 
+// Health check endpoint for Railway
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    environment: NODE_ENV,
+    cacheSize: responseCache.size
+  });
+});
+
+// Debug endpoint to check environment variables (without exposing full keys)
+app.get('/api/debug/env', (req, res) => {
+  const provider = (process.env.PROVIDER || (process.env.USE_MOCK === 'true' ? 'mock' : 'gemini')).toLowerCase();
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const gemmaKey = process.env.GEMMA_API_KEY;
+  
+  res.json({
+    environment: NODE_ENV,
+    provider: provider,
+    variables: {
+      PROVIDER: process.env.PROVIDER ? '✅ Set' : '❌ Not Set',
+      NODE_ENV: process.env.NODE_ENV ? '✅ Set' : '❌ Not Set',
+      PORT: process.env.PORT ? '✅ Set' : '❌ Not Set',
+      USE_MOCK: process.env.USE_MOCK || 'not set',
+      GEMINI_API_KEY: geminiKey ? `✅ Set (${geminiKey.substring(0, 10)}...${geminiKey.substring(geminiKey.length - 4)})` : '❌ Not Set',
+      GEMINI_MODEL: process.env.GEMINI_MODEL || 'using default',
+      OPENAI_API_KEY: openaiKey ? `✅ Set (${openaiKey.substring(0, 8)}...)` : '❌ Not Set',
+      OPENAI_MODEL: process.env.OPENAI_MODEL || 'using default',
+      GEMMA_API_KEY: gemmaKey ? `✅ Set (${gemmaKey.substring(0, 8)}...)` : '❌ Not Set',
+      CORS_ORIGIN: process.env.CORS_ORIGIN || 'using default (*)'
+    },
+    diagnosis: {
+      willUseMock: provider === 'mock',
+      providerConfigured: provider !== 'mock' && (
+        (provider === 'gemini' && geminiKey) ||
+        (provider === 'openai' && openaiKey) ||
+        (provider === 'gemma' && gemmaKey)
+      ),
+      recommendation: provider === 'mock' 
+        ? '⚠️ Using MOCK provider. Set PROVIDER=gemini and configure GEMINI_API_KEY in Railway Variables.'
+        : !geminiKey && provider === 'gemini'
+        ? '⚠️ PROVIDER is gemini but GEMINI_API_KEY is not set! Add it in Railway Variables.'
+        : '✅ Configuration looks good!'
+    }
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
+});
+
+// 404 handler - must be last route
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`FraudShield AI server running on port ${PORT}`);
+  console.log(`Environment: ${NODE_ENV}`);
+  console.log(`Provider: ${process.env.PROVIDER || 'gemini'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, closing server gracefully...');
+  saveCache();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, closing server gracefully...');
+  saveCache();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });

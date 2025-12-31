@@ -1,11 +1,21 @@
 {
   "name": "fraudshield-ai",
   "version": "1.0.0",
+  "description": "Real-Time Scam, Fake-News & Phishing Detection App",
   "main": "server.js",
   "type": "module",
-  "scripts": {
-    "start": "node server.js"
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": ["fraud-detection", "scam-detection", "ai", "security"],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
