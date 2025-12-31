@@ -73,8 +73,8 @@ async function submitReport() {
       throw new Error(data.error || 'Scan failed');
     }
     
-    const riskClass = data.score <= 30 ? 'high-risk' : data.score <= 60 ? 'medium-risk' : 'low-risk';
-    const riskIcon = data.score <= 30 ? '🚨' : data.score <= 60 ? '⚠️' : '✅';
+    const riskClass = data.score >= 70 ? 'high-risk' : data.score >= 30 ? 'medium-risk' : 'low-risk';
+    const riskIcon = data.score >= 70 ? '🚨' : data.score >= 30 ? '⚠️' : '✅';
     
     resultDiv.innerHTML = `
       <div class="success-message">

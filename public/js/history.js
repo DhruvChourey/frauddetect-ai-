@@ -38,9 +38,9 @@ function updateStats() {
   if (!statsDiv) return;
   
   const total = _historyData.length;
-  const highRisk = _historyData.filter(r => r.score <= 30).length;
-  const mediumRisk = _historyData.filter(r => r.score > 30 && r.score <= 60).length;
-  const lowRisk = _historyData.filter(r => r.score > 60).length;
+  const highRisk = _historyData.filter(r => r.score >= 70).length;
+  const mediumRisk = _historyData.filter(r => r.score >= 30 && r.score < 70).length;
+  const lowRisk = _historyData.filter(r => r.score < 30).length;
   
   statsDiv.innerHTML = `
     <div class="stat-item" style="--index: 0"><span class="stat-label">Total Scans</span> <span class="stat-value">${total}</span></div>
@@ -99,7 +99,7 @@ function renderTable() {
   }
 
   filtered.forEach((record, index) => {
-    const riskClass = record.score <= 30 ? 'high-risk' : record.score <= 60 ? 'medium-risk' : 'low-risk';
+    const riskClass = record.score >= 70 ? 'high-risk' : record.score >= 30 ? 'medium-risk' : 'low-risk';
     const tr = document.createElement('tr');
     tr.className = 'table-row';
     tr.style.animationDelay = `${index * 0.05}s`;

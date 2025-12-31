@@ -39,8 +39,8 @@ async function loadDetail() {
     }
     
     const record = await resp.json();
-    const riskClass = record.score <= 30 ? 'high-risk' : record.score <= 60 ? 'medium-risk' : 'low-risk';
-    const riskIcon = record.score <= 30 ? '🚨' : record.score <= 60 ? '⚠️' : '✅';
+    const riskClass = record.score >= 70 ? 'high-risk' : record.score >= 30 ? 'medium-risk' : 'low-risk';
+    const riskIcon = record.score >= 70 ? '🚨' : record.score >= 30 ? '⚠️' : '✅';
     
     detailsDiv.innerHTML = `
       <div class="detail-header">
