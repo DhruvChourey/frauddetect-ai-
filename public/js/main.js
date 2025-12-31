@@ -11,7 +11,6 @@ function showToast(message, type = 'info') {
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
-
 // Normalize verdict + score into UI-friendly risk styling
 function getRiskMeta({ score, verdict }) {
   const verdictNormalized = (verdict || '').toLowerCase();
@@ -33,7 +32,6 @@ function getRiskMeta({ score, verdict }) {
   if (numericScore >= 30) return { riskClass: 'medium-risk', riskIcon: '⚠️' };
   return { riskClass: 'low-risk', riskIcon: '✅' };
 }
-
 // Progress bar
 function showProgress() {
   const progressBar = document.getElementById('progressBar');

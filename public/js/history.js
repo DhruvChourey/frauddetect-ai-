@@ -14,7 +14,6 @@ function showToast(message, type = 'info') {
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
-
 // Normalize verdict + score into consistent badge/icon colors
 function getRiskMeta({ score, verdict }) {
   const verdictNormalized = (verdict || '').toLowerCase();
@@ -36,7 +35,6 @@ function getRiskMeta({ score, verdict }) {
   if (numericScore >= 30) return { riskClass: 'medium-risk', riskIcon: '⚠️' };
   return { riskClass: 'low-risk', riskIcon: '✅' };
 }
-
 async function loadHistory() {
   const tbody = document.getElementById('historyTableBody');
   tbody.innerHTML = '<tr><td colspan="5" class="loading-cell"><div class="spinner"></div> Loading history...</td></tr>';

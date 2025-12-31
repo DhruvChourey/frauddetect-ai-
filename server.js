@@ -343,6 +343,8 @@ app.get('/health', (req, res) => {
   });
 });
 
+    const prompt = `Analyze this for scams/phishing/fake-news: "${contentPreview}". Respond JSON only: {verdict:"scam"|"safe"|"suspicious",score:0-100,reason:"brief explanation",category:"${type}"}. Note: score 0=completely safe, 100=maximum risk/danger.`;
+  const system = 'You are FraudShield AI, an expert in detecting scams, phishing, and fake news. Respond with a JSON object only with format: {verdict:"scam"|"safe"|"suspicious",score:0-100,reason:"brief explanation",category:"<type>"}. Important: score represents risk level where 0=completely safe, 100=maximum risk/danger.';
 // Debug endpoint to check environment variables (without exposing full keys)
 app.get('/api/debug/env', (req, res) => {
   const provider = (process.env.PROVIDER || (process.env.USE_MOCK === 'true' ? 'mock' : 'gemini')).toLowerCase();
@@ -380,7 +382,6 @@ app.get('/api/debug/env', (req, res) => {
     }
   });
 });
-
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
